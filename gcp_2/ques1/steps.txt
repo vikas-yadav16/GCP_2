@@ -1,0 +1,40 @@
+1. create 2 subnets in different regions. one will be private and other one will be public.
+
+2. Create 1st firewall rule to allow SSH access 
+    gcloud compute firewall-rules create demo-vpc-allow-ssh --allow tcp:22 --network demo-vpc
+
+3.  Create 2nd firewall rule to allow access (tcp,udp,icmp ports)internally within VPC
+    gcloud compute firewall-rules create demo-vpc-allow-internal-network --allow tcp:1-65535,udp:1-65535,icmp --source-ranges 10.0.0.0/16     --network demo-vpc
+
+
+4. Launch NAT instance in Public subnet with tag as “nat-instance”.
+     gcloud compute instances create nat-gateway --network gce-network --can-ip-forward 
+    --zone us-central1-a
+    --image-family debian-8
+    --image-project debian-cloud 
+    --tags nat-instance
+
+5. Launch instance in private subnet with tag as “Private-instances”
+     gcloud compute instances create example-instance --network demo-vpc-manual-vpc --no-address 
+    --zone us-east1-b 
+    --image-family debian-8 
+    --subnet demo-vpc-manual-vpc-subnet-a 
+    --image-project debian-cloud 
+    --tags private-instance
+
+6.  Create a route to allow all instances running in private subnet to access internet.
+      gcloud compute routes create demo-vpc-no-ip-internet-route --network demo-vpc-manual-vpc 
+    --destination-range 0.0.0.0/0 
+    --next-hop-instance nat-gateway 
+    --next-hop-instance-zone us-east1-b 
+    --tags private-instance --priority 800
+
+7.   log onto your gateway instance and configure iptables to NAT
+    sudo sysctl -w net.ipv4.ip_forward=1
+     
+     for msquerading packets from internal instances
+       sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE  
+
+8.   SSH to your private instances and install apache2 package
+      sudo apt-get update -y
+      sudo apt-get install apache2 -y
